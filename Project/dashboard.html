@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html lang="en">
+<head>
+    <style>
+        .axis {
+            font-size: 10px;
+        }
+        .axis path {
+            fill: none;
+            stroke: #000000;
+        }
+        .axis .tick line {
+            stroke: #000;
+        }
+
+        .states {
+            fill: #ccc;
+            stroke: #fff;
+        }
+
+    </style>
+    <style>
+
+        #chart {
+            background: #fff;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        .title {
+            font-weight: bold;
+            font-size: 24px;
+            text-align: center;
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+        text {
+            pointer-events: none;
+        }
+
+        .grandparent text {
+            font-weight: bold;
+        }
+
+        rect {
+            fill: none;
+            stroke: #fff;
+        }
+
+        rect.parent,
+        .grandparent rect {
+            stroke-width: 2px;
+        }
+
+        rect.parent {
+            pointer-events: none;
+        }
+
+        .grandparent rect {
+            fill: orange;
+        }
+
+        .grandparent:hover rect {
+            fill: #ee9700;
+        }
+
+        .children rect.parent,
+        .grandparent rect {
+            cursor: pointer;
+        }
+
+        .children rect.parent {
+            fill: #bbb;
+            fill-opacity: .5;
+        }
+
+        .children:hover rect.child {
+            fill: #bbb;
+        }
+
+    </style>
+    <title>Dashboard</title>
+</head>
+<body>
+
+<script src="https://code.jquery.com/jquery-1.7.2.min.js"></script>
+<script src="https://d3js.org/d3.v3.js"></script>
+<script src="scatter.js"></script>
+<script src="brush.js"></script>
+<script src="symbol_map.js"></script>
+<!--<script src="miso.ds.deps.0.4.1.js"></script>-->
+<script src="https://d3js.org/topojson.v1.min.js"></script>
+<script src="https://d3js.org/queue.v1.min.js"></script>
+<h2 style="margin-left: 330px"> COVID 19 Deaths Occurred</h2>
+<script>
+    window.addEventListener('message', function(e) {
+        var opts = e.data.opts,
+            data = e.data.data;
+
+        return main(opts, data);
+    });
+
+    var Vis = {};
+    Vis.data = [];
+
+    //http://bl.ocks.org/mbostock/4342045
+    var width = 960,
+        height = 500;
+    var data;
+
+    var SPREADSHEET_ID = "0Agy_OAo_DS4PdFlrdVR1X2Nub1U3VnE0X0xBemI1eUE";
+    var SPREADSHEET_TAB = "1";
+
+    var json_file = "pics5.json";
+
+    var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    var mapgroup = svg.append("g");
+
+    //Define map projection
+    var projection = d3.geo.albersUsa()
+        .translate([500, 230])
+        .scale([500]);
+
+
+    var path = d3.geo.path()
+        .projection(projection);
+
+    queue()
+        .defer(d3.json, "states.json")
+        .await(ready);
+
+    function ready(error, us) {
+
+        mapgroup.append("path")
+            .attr("class", "states")
+            .datum(topojson.feature(us, us.objects.usStates))
+            .attr("d", path);
+
+
+        loadJson(json_file);
+        //loadGSS(SPREADSHEET_ID, SPREADSHEET_TAB);
+
+    }
+
+
+    function createDiagram(max) {
+
+        var sgroup = svg.append("g")
+            .attr("transform", "translate(50, 0)")
+        // var scatter = d3.chart.scatter()
+        // scatter.data(Vis.data)
+        // scatter(sgroup)
+
+        var symbol_map = d3.chart.symbol_map()
+        symbol_map.data(Vis.data)
+        symbol_map.max(max)
+        symbol_map(mapgroup)
+
+
+        //brush
+        var bgroup = svg.append("g")
+            .attr("transform", "translate(100, 430)")
+        var brush = d3.chart.brush()
+        brush
+            .data(Vis.data)
+            .width(800)
+        brush(bgroup)
+
+        brush.on("filter", function(filtered) {
+            // scatter.data(filtered);
+            // scatter.update();
+            symbol_map.data(filtered)
+            symbol_map.update();
+        })
+
+        // scatter.on("hover", function(hovered) {
+        //     brush.highlight(hovered)
+        //     symbol_map.highlight(hovered)
+        // })
+
+        symbol_map.on("hover", function(hovered) {
+            // scatter.highlight(hovered)
+            brush.highlight(hovered)
+        })
+
+    }
+
+    function loadJson(file_name) {
+        d3.json(file_name, function(error, file_data) {
+            Vis.data = file_data;
+
+            Vis.data.forEach(function(d) {
+                d.created *= 1000;
+            });
+
+            d3.csv('us_deaths.csv', function(data) {
+                data.forEach(function (value,key){
+                    data[key].Date = new Date(value.Date).getTime()
+                });
+
+                // var treedata = d3.nest()
+                //     .key(function (d) {return d['Province/State']})
+                //     .key(function (d) {return d['Date']})
+                //     .rollup(function(v) {
+                //         return [{
+                //             key:v[0]['Province/State']
+                //             // value:d.cases.slice(-1)[0].values - d.cases[0].values
+                //     }]
+                //     })
+                //     .entries(data)
+
+                // var treedata = d3.nest()
+                //     .key(function (d) {return d['Province/State']})
+                //     .key(function (d) {return d['Admin2']})
+                //     .rollup(function(v) {
+                //         return d3.sum(v, function(d) {
+                //             return +d.Case;
+                //         })
+                //     })
+                //     .entries(data)
+                //     .map(function (d) {
+                //         return {
+                //             key:d.key,
+                //             values: d.values.map(function (c) {
+                //                 return {
+                //                     key: c.key,
+                //                     region: d.key,
+                //                     value: c.values
+                //                 }
+                //             })
+                //         }
+                //     })
+
+                var preprocess = d3.nest()
+                    .key(function (d) {return d['Province/State']})
+                    .key(function(d) { return d['Date'] })
+                    .rollup(function(v) {
+                        return d3.sum(v, function(d) {
+                            return +d.Case;
+                        })
+                    })
+                    .entries(data)
+
+                const getByKey = function(arr,key){
+                    return (
+                        arr.find(x => x.key === key) || {})
+                }
+                var max = d3.max(preprocess, d => d3.max(d.values, v => v.values))
+
+                Vis.data.forEach(function (value,key) {
+                    var x = getByKey(preprocess,value.id)
+                    if ('values' in x)
+                        Vis.data[key].cases = x.values
+                })
+
+                var treedata = Vis.data.map(function (d) {
+                    return {
+                        key:d.id,
+                        values: [{region:d.id, value:d.cases.slice(-1)[0].values}]
+                    }
+                })
+                Vis.tree = treedata
+                console.log(preprocess)
+                console.log(treedata)
+                console.log(Vis.data)
+                createDiagram(max);
+            });
+        });
+    }
+
+    function loadGSS(ssid, tab) {
+
+        //connect to spreadsheet
+        var lsheet = new Miso.Dataset({
+            importer : Miso.Dataset.Importers.GoogleSpreadsheet,
+            parser : Miso.Dataset.Parsers.GoogleSpreadsheet,
+            key : ssid,
+            worksheet : tab
+        });
+
+        //load data from spreadsheet
+        lsheet.fetch({
+            success : function() {
+
+                this.each(function(row){
+                    Vis.data.push(row);
+                });
+                Vis.data.forEach(function(d) {
+                    d.created *= 1000;
+                });
+
+                createDiagram();
+
+            },
+            error : function() {
+                console.log("Data failed to load from GSS.");
+            }
+        });
+
+    }
+
+</script>
+
+</body>
+</html>
